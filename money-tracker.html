@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ledger — Money Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B2A22;
+    --ink-soft:#4E5A52;
+    --paper:#F2EEE4;
+    --paper-2:#E9E2D2;
+    --paper-line:#D9D0B8;
+    --card:#FBF9F3;
+    --gold:#A9791F;
+    --gold-deep:#8A6417;
+    --clay:#95402B;
+    --clay-bg:#F3E2DC;
+    --sage:#3F6146;
+    --sage-bg:#E2E9DD;
+    --shadow: 0 1px 2px rgba(27,42,34,0.06), 0 4px 14px rgba(27,42,34,0.08);
+    --radius: 14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+  }
+  #app{
+    width:100%;
+    max-width:480px;
+    min-height:100vh;
+    background:var(--paper);
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    box-shadow:0 0 40px rgba(0,0,0,0.4);
+  }
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  .display{font-family:'Fraunces', serif;}
+
+  /* ---------- Header ---------- */
+  header.top{
+    background:var(--ink);
+    color:var(--paper);
+    padding:22px 20px 18px;
+    position:sticky;
+    top:0;
+    z-index:20;
+  }
+  header.top .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:#B9C4B7;
+    margin:0 0 4px;
+  }
+  header.top h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:28px;
+    margin:0 0 14px;
+    letter-spacing:.01em;
+  }
+  .total-row{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    border-top:1px dashed rgba(242,238,228,0.25);
+    padding-top:12px;
+  }
+  .total-row .label{font-size:12px;color:#B9C4B7;letter-spacing:.05em;text-transform:uppercase;}
+  .total-row .value{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#E9C976;}
+
+  /* ---------- Tabs ---------- */
+  nav.tabs{
+    display:flex;
+    background:var(--paper);
+    border-bottom:1px solid var(--paper-line);
+    position:sticky;
+    top:0;
+    z-index:19;
+  }
+  nav.tabs button{
+    flex:1;
+    padding:13px 0 11px;
+    background:none;
+    border:none;
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:14px;
+    font-weight:600;
+    color:var(--ink-soft);
+    letter-spacing:.02em;
+    position:relative;
+    cursor:pointer;
+  }
+  nav.tabs button.active{color:var(--ink);}
+  nav.tabs button.active::after{
+    content:"";
+    position:absolute;
+    left:22%;right:22%;bottom:0;
+    height:3px;
+    background:var(--gold);
+    border-radius:2px 2px 0 0;
+  }
+
+  main{flex:1;padding:18px 16px 100px;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    font-family:'IBM Plex Sans',sans-serif;
+    font-weight:600;font-size:14px;
+    padding:12px 16px;border-radius:10px;border:none;
+    cursor:pointer;
+  }
+  .btn-primary{background:var(--ink);color:var(--paper);}
+  .btn-primary:active{background:#0f1712;}
+  .btn-gold{background:var(--gold);color:#241a06;}
+  .btn-outline{background:transparent;color:var(--ink);border:1.5px solid var(--paper-line);}
+  .btn-danger{background:var(--clay-bg);color:var(--clay);}
+  .btn-block{width:100%;}
+  .btn-sm{padding:8px 12px;font-size:13px;border-radius:8px;}
+  .btn-icon{padding:8px 10px;}
+
+  .fab{
+    position:fixed;
+    left:50%;
+    transform:translateX(calc(-240px + 16px));
+    bottom:22px;
+    z-index:25;
+    width:calc(480px - 32px);
+    max-width:calc(100vw - 32px);
+  }
+  @media(max-width:480px){
+    .fab{transform:none;left:16px;right:16px;width:auto;}
+  }
+
+  /* ---------- Account card (passbook stub) ---------- */
+  .acct-card{
+    background:var(--card);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    margin-bottom:14px;
+    padding:16px 16px 14px 20px;
+    position:relative;
+    border-left:3px dashed var(--paper-line);
+    cursor:pointer;
+  }
+  .acct-card::before{
+    content:"";
+    position:absolute;
+    left:-3px;top:14px;bottom:14px;width:3px;
+    background:repeating-linear-gradient(to bottom, transparent 0 4px, var(--paper-line) 4px 8px);
+  }
+  .acct-top{display:flex;justify-content:space-between;align-items:flex-start;}
+  .acct-name{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin:0;}
+  .acct-tag{font-size:11px;color:var(--ink-soft);letter-spacing:.06em;text-transform:uppercase;margin-top:2px;}
+  .acct-balance{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:21px;text-align:right;}
+  .acct-balance.low{color:var(--clay);}
+  .acct-balance.ok{color:var(--gold-deep);}
+  .acct-meta{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-top:10px;padding-top:10px;border-top:1px solid var(--paper-line);
+    font-size:12.5px;color:var(--ink-soft);
+  }
+  .acct-meta .spent-today{font-family:'IBM Plex Mono',monospace;color:var(--clay);font-weight:600;}
+  .bar-track{height:5px;border-radius:3px;background:var(--paper-2);margin-top:8px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--sage);border-radius:3px;}
+  .bar-fill.over{background:var(--clay);}
+
+  .empty{
+    text-align:center;color:var(--ink-soft);padding:50px 20px;
+    font-size:14px;line-height:1.6;
+  }
+  .empty .display{font-size:20px;color:var(--ink);display:block;margin-bottom:6px;}
+
+  /* ---------- Detail / Report shared ---------- */
+  .back-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .back-btn{background:none;border:none;font-size:20px;color:var(--ink);cursor:pointer;padding:4px;}
+  .section-title{font-family:'Fraunces',serif;font-weight:600;font-size:20px;margin:0;}
+
+  .balance-hero{
+    background:var(--ink);color:var(--paper);
+    border-radius:var(--radius);
+    padding:20px;margin-bottom:16px;
+    box-shadow:var(--shadow);
+  }
+  .balance-hero .label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#B9C4B7;}
+  .balance-hero .amt{font-family:'IBM Plex Mono',monospace;font-size:34px;font-weight:600;color:#E9C976;margin:4px 0 14px;}
+  .balance-hero .actions{display:flex;gap:8px;}
+
+  .tx-form{
+    background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:16px;margin-bottom:18px;
+  }
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:5px;letter-spacing:.03em;text-transform:uppercase;}
+  .field input, .field select, .field textarea{
+    width:100%;padding:11px 12px;border-radius:9px;border:1.5px solid var(--paper-line);
+    font-family:'IBM Plex Sans',sans-serif;font-size:15px;background:#fff;color:var(--ink);
+  }
+  .field input.mono{font-family:'IBM Plex Mono',monospace;}
+  .field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:var(--gold);}
+  .seg{display:flex;border-radius:9px;overflow:hidden;border:1.5px solid var(--paper-line);}
+  .seg button{flex:1;padding:10px;background:#fff;border:none;font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:13.5px;color:var(--ink-soft);cursor:pointer;}
+  .seg button.on{background:var(--ink);color:var(--paper);}
+
+  .tx-list-title{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 8px;}
+  .tx-row{
+    display:flex;justify-content:space-between;align-items:center;
+    background:var(--card);border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);
+  }
+  .tx-row .tx-left .tx-note{font-size:14px;font-weight:500;}
+  .tx-row .tx-left .tx-date{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .tx-row .tx-amt{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px;white-space:nowrap;margin-left:10px;}
+  .tx-amt.spend{color:var(--clay);}
+  .tx-amt.topup{color:var(--sage);}
+  .tx-actions{display:flex;gap:4px;margin-left:8px;}
+  .icon-btn{background:none;border:none;font-size:15px;padding:5px;color:var(--ink-soft);cursor:pointer;}
+
+  /* ---------- Daily report ---------- */
+  .date-nav{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:10px 14px;margin-bottom:16px;
+  }
+  .date-nav button{background:none;border:none;font-size:18px;color:var(--ink);cursor:pointer;padding:6px 10px;}
+  .date-nav .date-label{font-family:'Fraunces',serif;font-weight:600;font-size:16px;text-align:center;}
+  .report-total{
+    background:var(--ink);color:var(--paper);border-radius:var(--radius);
+    padding:16px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;box-shadow:var(--shadow);
+  }
+  .report-total .label{font-size:12px;color:#B9C4B7;letter-spacing:.08em;text-transform:uppercase;}
+  .report-total .value{font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:#E9C976;}
+  .report-row{
+    background:var(--card);border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);
+  }
+  .report-row .rr-top{display:flex;justify-content:space-between;font-size:14px;font-weight:600;margin-bottom:7px;}
+  .report-row .rr-top .amt{font-family:'IBM Plex Mono',monospace;color:var(--clay);}
+
+  /* ---------- Modal ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(27,42,34,0.5);
+    display:none;align-items:flex-end;justify-content:center;z-index:50;
+  }
+  .overlay.show{display:flex;}
+  .sheet{
+    background:var(--paper);width:100%;max-width:480px;border-radius:18px 18px 0 0;
+    padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height:88vh;overflow-y:auto;
+    box-shadow:0 -8px 30px rgba(0,0,0,0.25);
+  }
+  .sheet h2{font-family:'Fraunces',serif;font-weight:600;font-size:20px;margin:0 0 16px;}
+  .sheet-actions{display:flex;gap:10px;margin-top:6px;}
+  .sheet-actions .btn{flex:1;}
+  .swatch-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .swatch{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer;}
+  .swatch.on{border-color:var(--ink);}
+
+  ::-webkit-scrollbar{width:0;height:0;}
+  .hint{font-size:12px;color:var(--ink-soft);margin-top:-4px;margin-bottom:12px;}
+
+  .check-row{
+    display:flex;align-items:center;gap:8px;margin:-2px 0 12px;
+  }
+  .check-row input[type="checkbox"]{
+    width:17px;height:17px;accent-color:var(--gold);flex-shrink:0;
+  }
+  .check-row label{
+    font-size:13px;color:var(--ink-soft);text-transform:none;letter-spacing:0;margin:0;
+    display:inline;
+  }
+  .note-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:2px;}
+  .note-chip{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--paper-2);border-radius:20px;
+    padding:6px 6px 6px 12px;font-size:12.5px;color:var(--ink);
+  }
+  .note-chip button{
+    background:none;border:none;color:var(--ink-soft);cursor:pointer;
+    font-size:13px;padding:2px 4px;line-height:1;
+  }
+  .note-chips-empty{font-size:12px;color:var(--ink-soft);font-style:italic;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="top">
+    <p class="eyebrow" id="todayLabel">—</p>
+    <h1>Ledger</h1>
+    <div class="total-row">
+      <span class="label">Across all accounts</span>
+      <span class="value mono" id="grandTotal">0 EGP</span>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="accounts">Accounts</button>
+    <button class="tab-btn" data-tab="report">Daily report</button>
+  </nav>
+
+  <main>
+    <!-- ACCOUNTS LIST -->
+    <section class="view active" id="view-accounts">
+      <div id="acctList"></div>
+      <div id="acctEmpty" class="empty" style="display:none;">
+        <span class="display">No accounts yet</span>
+        Create one for each budget you track — transport, groceries, fun money — and give it a starting balance.
+      </div>
+    </section>
+
+    <!-- ACCOUNT DETAIL -->
+    <section class="view" id="view-detail">
+      <div class="back-row">
+        <button class="back-btn" data-back="accounts">←</button>
+        <h2 class="section-title" id="detailName">Account</h2>
+      </div>
+
+      <div class="balance-hero">
+        <div class="label">Current balance</div>
+        <div class="amt mono" id="detailBalance">0 EGP</div>
+        <div class="actions">
+          <button class="btn btn-gold btn-sm" id="editAcctBtn">Edit account</button>
+          <button class="btn btn-danger btn-sm" id="deleteAcctBtn">Delete</button>
+        </div>
+      </div>
+
+      <div class="tx-form">
+        <div class="seg" id="txTypeSeg">
+          <button type="button" class="on" data-type="spend">Spent</button>
+          <button type="button" data-type="topup">Added funds</button>
+        </div>
+        <br>
+        <div class="field">
+          <label for="txAmount">Amount (EGP)</label>
+          <input type="number" id="txAmount" inputmode="decimal" class="mono" placeholder="0">
+        </div>
+        <div class="field">
+          <label for="txNote">Note (optional)</label>
+          <input type="text" id="txNote" list="noteOptions" placeholder="e.g. Uber to work" autocomplete="off">
+          <datalist id="noteOptions"></datalist>
+        </div>
+        <div class="check-row">
+          <input type="checkbox" id="saveNoteCheck">
+          <label for="saveNoteCheck">Save this note so it appears in the dropdown next time</label>
+        </div>
+        <div class="field">
+          <label for="txDate">Date</label>
+          <input type="date" id="txDate">
+        </div>
+        <button class="btn btn-primary btn-block" id="addTxBtn">Add transaction</button>
+      </div>
+
+      <p class="tx-list-title">Transaction history</p>
+      <div id="txList"></div>
+      <div id="txEmpty" class="empty" style="display:none;">
+        <span class="display">Nothing logged yet</span>
+        Every expense or top-up for this account will show up here.
+      </div>
+    </section>
+
+    <!-- DAILY REPORT -->
+    <section class="view" id="view-report">
+      <div class="date-nav">
+        <button id="prevDay">‹</button>
+        <div class="date-label" id="reportDateLabel">Today</div>
+        <button id="nextDay">›</button>
+      </div>
+      <div class="report-total">
+        <span class="label">Total spent that day</span>
+        <span class="value mono" id="reportTotal">0 EGP</span>
+      </div>
+      <div id="reportList"></div>
+      <div id="reportEmpty" class="empty" style="display:none;">
+        <span class="display">No spending recorded</span>
+        Nothing was logged against any account on this day.
+      </div>
+    </section>
+  </main>
+
+  <button class="btn btn-gold fab" id="newAcctBtn">+ New account</button>
+</div>
+
+<!-- ACCOUNT FORM SHEET -->
+<div class="overlay" id="acctOverlay">
+  <div class="sheet">
+    <h2 id="acctSheetTitle">New account</h2>
+    <div class="field">
+      <label for="acctNameInput">Account name</label>
+      <input type="text" id="acctNameInput" placeholder="e.g. Transportation">
+    </div>
+    <div class="field">
+      <label for="acctBalanceInput" id="acctBalanceLabel">Starting balance (EGP)</label>
+      <input type="number" id="acctBalanceInput" class="mono" inputmode="decimal" placeholder="0">
+    </div>
+    <p class="hint" id="acctBalanceHint">This is how much is available in the account right now.</p>
+    <div class="field">
+      <label>Color tag</label>
+      <div class="swatch-row" id="swatchRow"></div>
+    </div>
+    <div class="field" id="savedNotesField" style="display:none;">
+      <label>Saved notes</label>
+      <div class="note-chips" id="savedNotesChips"></div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-outline" id="acctCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="acctSaveBtn">Save account</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT TRANSACTION SHEET -->
+<div class="overlay" id="txOverlay">
+  <div class="sheet">
+    <h2>Edit transaction</h2>
+    <div class="seg" id="editTxTypeSeg">
+      <button type="button" data-type="spend">Spent</button>
+      <button type="button" data-type="topup">Added funds</button>
+    </div>
+    <br>
+    <div class="field">
+      <label for="editTxAmount">Amount (EGP)</label>
+      <input type="number" id="editTxAmount" inputmode="decimal" class="mono">
+    </div>
+    <div class="field">
+      <label for="editTxNote">Note</label>
+      <input type="text" id="editTxNote" list="editNoteOptions" autocomplete="off">
+      <datalist id="editNoteOptions"></datalist>
+    </div>
+    <div class="check-row">
+      <input type="checkbox" id="editSaveNoteCheck">
+      <label for="editSaveNoteCheck">Save this note so it appears in the dropdown next time</label>
+    </div>
+    <div class="field">
+      <label for="editTxDate">Date</label>
+      <input type="date" id="editTxDate">
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-outline" id="txCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="txSaveBtn">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- Data layer ---------------- */
+  var STORAGE_KEY = "ledger_data_v1";
+  var COLORS = ["#A9791F","#3F6146","#95402B","#3E6B8A","#7A4E9C","#B0672D"];
+
+  function loadData(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return { accounts: [], transactions: [] };
+      var parsed = JSON.parse(raw);
+      if(!parsed.accounts) parsed.accounts = [];
+      if(!parsed.transactions) parsed.transactions = [];
+      parsed.accounts.forEach(function(a){ if(!Array.isArray(a.savedNotes)) a.savedNotes = []; });
+      return parsed;
+    }catch(e){
+      console.error("Failed to load data", e);
+      return { accounts: [], transactions: [] };
+    }
+  }
+  function saveData(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  var state = loadData();
+
+  function uid(){
+    return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  }
+  function todayISO(){
+    var d = new Date();
+    return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+  }
+  function pad(n){ return n < 10 ? "0"+n : ""+n; }
+  function formatMoney(n){
+    var v = Math.round((n + Number.EPSILON) * 100) / 100;
+    var parts = v.toFixed(2).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    var str = parts[1] === "00" ? parts[0] : parts.join(".");
+    return str + " EGP";
+  }
+  function formatDateNice(iso){
+    var d = new Date(iso + "T00:00:00");
+    var opts = { weekday:"short", month:"short", day:"numeric" };
+    return d.toLocaleDateString(undefined, opts);
+  }
+  function formatDateFull(iso){
+    var d = new Date(iso + "T00:00:00");
+    var opts = { weekday:"long", month:"long", day:"numeric", year:"numeric" };
+    return d.toLocaleDateString(undefined, opts);
+  }
+  function addDaysISO(iso, delta){
+    var d = new Date(iso + "T00:00:00");
+    d.setDate(d.getDate() + delta);
+    return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+  }
+
+  function getAccount(id){
+    for(var i=0;i<state.accounts.length;i++){ if(state.accounts[i].id === id) return state.accounts[i]; }
+    return null;
+  }
+  function getTxForAccount(id){
+    return state.transactions.filter(function(t){ return t.accountId === id; })
+      .sort(function(a,b){ return (b.date+b.ts) < (a.date+a.ts) ? -1 : 1; });
+  }
+  function addSavedNote(acc, note){
+    if(!note) return;
+    if(!Array.isArray(acc.savedNotes)) acc.savedNotes = [];
+    var exists = acc.savedNotes.some(function(n){ return n.toLowerCase() === note.toLowerCase(); });
+    if(!exists) acc.savedNotes.push(note);
+  }
+  function removeSavedNote(acc, note){
+    acc.savedNotes = (acc.savedNotes || []).filter(function(n){ return n !== note; });
+  }
+  function fillNoteDatalist(listEl, acc){
+    listEl.innerHTML = "";
+    (acc && acc.savedNotes ? acc.savedNotes : []).forEach(function(n){
+      var opt = document.createElement("option");
+      opt.value = n;
+      listEl.appendChild(opt);
+    });
+  }
+  function spentOn(accountId, iso){
+    return state.transactions.reduce(function(sum,t){
+      if(t.accountId === accountId && t.date === iso && t.type === "spend") return sum + t.amount;
+      return sum;
+    }, 0);
+  }
+
+  /* ---------------- App state ---------------- */
+  var currentTab = "accounts";
+  var currentAccountId = null;
+  var editingAccountId = null;
+  var editingTxId = null;
+  var newTxType = "spend";
+  var editTxType = "spend";
+  var reportDate = todayISO();
+  var selectedColor = COLORS[0];
+
+  /* ---------------- Rendering ---------------- */
+  function renderAll(){
+    document.getElementById("todayLabel").textContent = formatDateFull(todayISO());
+    renderGrandTotal();
+    renderAccountsList();
+    if(currentAccountId) renderDetail();
+    renderReport();
+  }
+
+  function renderGrandTotal(){
+    var total = state.accounts.reduce(function(s,a){ return s + a.balance; }, 0);
+    document.getElementById("grandTotal").textContent = formatMoney(total);
+  }
+
+  function renderAccountsList(){
+    var list = document.getElementById("acctList");
+    var empty = document.getElementById("acctEmpty");
+    list.innerHTML = "";
+    if(state.accounts.length === 0){
+      empty.style.display = "block";
+      return;
+    }
+    empty.style.display = "none";
+    state.accounts.forEach(function(acc){
+      var today = todayISO();
+      var spentToday = spentOn(acc.id, today);
+      var card = document.createElement("div");
+      card.className = "acct-card";
+      card.style.borderLeftColor = acc.color;
+      var balClass = acc.balance <= 0 ? "low" : "ok";
+      var ratio = acc.initialBalance > 0 ? Math.min(1, spentToday / acc.initialBalance) : 0;
+      card.innerHTML =
+        '<div class="acct-top">' +
+          '<div><p class="acct-name">'+escapeHtml(acc.name)+'</p><p class="acct-tag">Balance</p></div>' +
+          '<div class="acct-balance mono '+balClass+'">'+formatMoney(acc.balance)+'</div>' +
+        '</div>' +
+        '<div class="acct-meta">' +
+          '<span>Spent today</span>' +
+          '<span class="spent-today mono">'+formatMoney(spentToday)+'</span>' +
+        '</div>' +
+        '<div class="bar-track"><div class="bar-fill'+(acc.balance<=0?' over':'')+'" style="width:'+Math.round(ratio*100)+'%;background:'+(acc.balance<=0?'var(--clay)':acc.color)+'"></div></div>';
+      card.addEventListener("click", function(){
+        currentAccountId = acc.id;
+        switchView("detail");
+        renderDetail();
+      });
+      list.appendChild(card);
+    });
+  }
+
+  function renderDetail(){
+    var acc = getAccount(currentAccountId);
+    if(!acc){ switchView("accounts"); return; }
+    document.getElementById("detailName").textContent = acc.name;
+    document.getElementById("detailBalance").textContent = formatMoney(acc.balance);
+    document.getElementById("txDate").value = todayISO();
+    fillNoteDatalist(document.getElementById("noteOptions"), acc);
+
+    var txs = getTxForAccount(acc.id);
+    var list = document.getElementById("txList");
+    var empty = document.getElementById("txEmpty");
+    list.innerHTML = "";
+    if(txs.length === 0){
+      empty.style.display = "block";
+    } else {
+      empty.style.display = "none";
+      txs.forEach(function(t){
+        var row = document.createElement("div");
+        row.className = "tx-row";
+        var sign = t.type === "spend" ? "−" : "+";
+        var cls = t.type === "spend" ? "spend" : "topup";
+        row.innerHTML =
+          '<div class="tx-left">' +
+            '<div class="tx-note">'+escapeHtml(t.note || (t.type === "spend" ? "Expense" : "Top-up"))+'</div>' +
+            '<div class="tx-date">'+formatDateNice(t.date)+'</div>' +
+          '</div>' +
+          '<div class="tx-amt mono '+cls+'">'+sign+' '+formatMoney(t.amount)+'</div>' +
+          '<div class="tx-actions">' +
+            '<button class="icon-btn" data-edit="'+t.id+'" title="Edit">✎</button>' +
+            '<button class="icon-btn" data-del="'+t.id+'" title="Delete">🗑</button>' +
+          '</div>';
+        list.appendChild(row);
+      });
+      list.querySelectorAll("[data-edit]").forEach(function(btn){
+        btn.addEventListener("click", function(){ openEditTx(btn.getAttribute("data-edit")); });
+      });
+      list.querySelectorAll("[data-del]").forEach(function(btn){
+        btn.addEventListener("click", function(){ deleteTx(btn.getAttribute("data-del")); });
+      });
+    }
+  }
+
+  function renderReport(){
+    document.getElementById("reportDateLabel").textContent =
+      reportDate === todayISO() ? "Today · " + formatDateNice(reportDate) : formatDateNice(reportDate);
+
+    var rows = state.accounts.map(function(acc){
+      return { acc: acc, spent: spentOn(acc.id, reportDate) };
+    }).filter(function(r){ return r.spent > 0; })
+      .sort(function(a,b){ return b.spent - a.spent; });
+
+    var total = rows.reduce(function(s,r){ return s + r.spent; }, 0);
+    document.getElementById("reportTotal").textContent = formatMoney(total);
+
+    var list = document.getElementById("reportList");
+    var empty = document.getElementById("reportEmpty");
+    list.innerHTML = "";
+    if(rows.length === 0){
+      empty.style.display = "block";
+      return;
+    }
+    empty.style.display = "none";
+    var max = rows[0].spent;
+    rows.forEach(function(r){
+      var row = document.createElement("div");
+      row.className = "report-row";
+      var pct = max > 0 ? Math.round((r.spent / max) * 100) : 0;
+      row.innerHTML =
+        '<div class="rr-top"><span>'+escapeHtml(r.acc.name)+'</span><span class="amt mono">'+formatMoney(r.spent)+'</span></div>' +
+        '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+r.acc.color+'"></div></div>';
+      list.appendChild(row);
+    });
+  }
+
+  function escapeHtml(str){
+    var div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  /* ---------------- View / tab switching ---------------- */
+  function switchView(name){
+    document.querySelectorAll(".view").forEach(function(v){ v.classList.remove("active"); });
+    if(name === "accounts"){
+      document.getElementById("view-accounts").classList.add("active");
+      currentTab = "accounts";
+    } else if(name === "detail"){
+      document.getElementById("view-detail").classList.add("active");
+    } else if(name === "report"){
+      document.getElementById("view-report").classList.add("active");
+      currentTab = "report";
+    }
+    document.querySelectorAll(".tab-btn").forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-tab") === currentTab && (name === "accounts" || name === "report"));
+    });
+    var fab = document.getElementById("newAcctBtn");
+    fab.style.display = (name === "accounts") ? "inline-flex" : "none";
+  }
+
+  document.querySelectorAll(".tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var tab = btn.getAttribute("data-tab");
+      switchView(tab);
+    });
+  });
+  document.querySelectorAll("[data-back]").forEach(function(btn){
+    btn.addEventListener("click", function(){ switchView(btn.getAttribute("data-back")); });
+  });
+
+  /* ---------------- Account CRUD ---------------- */
+  function buildSwatches(){
+    var row = document.getElementById("swatchRow");
+    row.innerHTML = "";
+    COLORS.forEach(function(c){
+      var sw = document.createElement("div");
+      sw.className = "swatch" + (c === selectedColor ? " on" : "");
+      sw.style.background = c;
+      sw.addEventListener("click", function(){
+        selectedColor = c;
+        buildSwatches();
+      });
+      row.appendChild(sw);
+    });
+  }
+
+  function openNewAccount(){
+    editingAccountId = null;
+    selectedColor = COLORS[state.accounts.length % COLORS.length];
+    document.getElementById("acctSheetTitle").textContent = "New account";
+    document.getElementById("acctNameInput").value = "";
+    document.getElementById("acctBalanceInput").value = "";
+    document.getElementById("acctBalanceLabel").textContent = "Starting balance (EGP)";
+    document.getElementById("acctBalanceHint").textContent = "This is how much is available in the account right now.";
+    document.getElementById("savedNotesField").style.display = "none";
+    buildSwatches();
+    document.getElementById("acctOverlay").classList.add("show");
+  }
+  function openEditAccount(){
+    var acc = getAccount(currentAccountId);
+    if(!acc) return;
+    editingAccountId = acc.id;
+    selectedColor = acc.color;
+    document.getElementById("acctSheetTitle").textContent = "Edit account";
+    document.getElementById("acctNameInput").value = acc.name;
+    document.getElementById("acctBalanceInput").value = acc.balance;
+    document.getElementById("acctBalanceLabel").textContent = "Current balance (EGP)";
+    document.getElementById("acctBalanceHint").textContent = "Adjust this directly if you need to correct the balance.";
+    document.getElementById("savedNotesField").style.display = "block";
+    renderSavedNotesChips(acc);
+    buildSwatches();
+    document.getElementById("acctOverlay").classList.add("show");
+  }
+  function renderSavedNotesChips(acc){
+    var wrap = document.getElementById("savedNotesChips");
+    wrap.innerHTML = "";
+    var notes = (acc && acc.savedNotes) || [];
+    if(notes.length === 0){
+      wrap.innerHTML = '<span class="note-chips-empty">No saved notes yet — check "Save this note" when adding a transaction.</span>';
+      return;
+    }
+    notes.forEach(function(n){
+      var chip = document.createElement("span");
+      chip.className = "note-chip";
+      chip.innerHTML = '<span></span><button type="button" title="Remove">✕</button>';
+      chip.querySelector("span").textContent = n;
+      chip.querySelector("button").addEventListener("click", function(){
+        removeSavedNote(acc, n);
+        saveData();
+        renderSavedNotesChips(acc);
+      });
+      wrap.appendChild(chip);
+    });
+  }
+  function closeAccountSheet(){
+    document.getElementById("acctOverlay").classList.remove("show");
+  }
+  function saveAccount(){
+    var name = document.getElementById("acctNameInput").value.trim();
+    var balanceRaw = document.getElementById("acctBalanceInput").value;
+    var balance = parseFloat(balanceRaw);
+    if(!name){ alert("Please give the account a name."); return; }
+    if(isNaN(balance)){ alert("Please enter a valid balance."); return; }
+
+    if(editingAccountId){
+      var acc = getAccount(editingAccountId);
+      acc.name = name;
+      acc.balance = balance;
+      acc.color = selectedColor;
+    } else {
+      state.accounts.push({
+        id: uid(),
+        name: name,
+        balance: balance,
+        initialBalance: balance,
+        color: selectedColor,
+        savedNotes: []
+      });
+    }
+    saveData();
+    closeAccountSheet();
+    renderAll();
+  }
+  function deleteAccount(){
+    var acc = getAccount(currentAccountId);
+    if(!acc) return;
+    if(!confirm('Delete "'+acc.name+'" and all its transaction history? This cannot be undone.')) return;
+    state.accounts = state.accounts.filter(function(a){ return a.id !== acc.id; });
+    state.transactions = state.transactions.filter(function(t){ return t.accountId !== acc.id; });
+    saveData();
+    currentAccountId = null;
+    switchView("accounts");
+    renderAll();
+  }
+
+  /* ---------------- Transaction CRUD ---------------- */
+  function setNewTxType(type){
+    newTxType = type;
+    document.querySelectorAll("#txTypeSeg button").forEach(function(b){
+      b.classList.toggle("on", b.getAttribute("data-type") === type);
+    });
+  }
+  document.querySelectorAll("#txTypeSeg button").forEach(function(b){
+    b.addEventListener("click", function(){ setNewTxType(b.getAttribute("data-type")); });
+  });
+
+  function addTransaction(){
+    var acc = getAccount(currentAccountId);
+    if(!acc) return;
+    var amount = parseFloat(document.getElementById("txAmount").value);
+    var note = document.getElementById("txNote").value.trim();
+    var date = document.getElementById("txDate").value || todayISO();
+    var shouldSaveNote = document.getElementById("saveNoteCheck").checked;
+    if(isNaN(amount) || amount <= 0){ alert("Enter an amount greater than zero."); return; }
+
+    var tx = {
+      id: uid(),
+      accountId: acc.id,
+      amount: amount,
+      note: note,
+      date: date,
+      type: newTxType,
+      ts: Date.now()
+    };
+    state.transactions.push(tx);
+    acc.balance += (newTxType === "spend") ? -amount : amount;
+    if(shouldSaveNote) addSavedNote(acc, note);
+    saveData();
+
+    document.getElementById("txAmount").value = "";
+    document.getElementById("txNote").value = "";
+    document.getElementById("saveNoteCheck").checked = false;
+    setNewTxType("spend");
+    renderAll();
+  }
+
+  function openEditTx(id){
+    var tx = state.transactions.find(function(t){ return t.id === id; });
+    if(!tx) return;
+    editingTxId = id;
+    editTxType = tx.type;
+    document.getElementById("editTxAmount").value = tx.amount;
+    document.getElementById("editTxNote").value = tx.note || "";
+    document.getElementById("editTxDate").value = tx.date;
+    document.getElementById("editSaveNoteCheck").checked = false;
+    fillNoteDatalist(document.getElementById("editNoteOptions"), getAccount(tx.accountId));
+    document.querySelectorAll("#editTxTypeSeg button").forEach(function(b){
+      b.classList.toggle("on", b.getAttribute("data-type") === editTxType);
+    });
+    document.getElementById("txOverlay").classList.add("show");
+  }
+  document.querySelectorAll("#editTxTypeSeg button").forEach(function(b){
+    b.addEventListener("click", function(){
+      editTxType = b.getAttribute("data-type");
+      document.querySelectorAll("#editTxTypeSeg button").forEach(function(x){
+        x.classList.toggle("on", x === b);
+      });
+    });
+  });
+  function closeTxSheet(){
+    document.getElementById("txOverlay").classList.remove("show");
+    editingTxId = null;
+  }
+  function saveTxEdit(){
+    var tx = state.transactions.find(function(t){ return t.id === editingTxId; });
+    if(!tx) return;
+    var acc = getAccount(tx.accountId);
+    var newAmount = parseFloat(document.getElementById("editTxAmount").value);
+    var newNote = document.getElementById("editTxNote").value.trim();
+    var newDate = document.getElementById("editTxDate").value || tx.date;
+    var shouldSaveNote = document.getElementById("editSaveNoteCheck").checked;
+    if(isNaN(newAmount) || newAmount <= 0){ alert("Enter an amount greater than zero."); return; }
+    if(shouldSaveNote && acc) addSavedNote(acc, newNote);
+
+    // reverse old effect on balance
+    if(acc){
+      acc.balance -= (tx.type === "spend" ? -tx.amount : tx.amount);
+      // apply new effect
+      acc.balance += (editTxType === "spend" ? -newAmount : newAmount);
+    }
+    tx.amount = newAmount;
+    tx.note = newNote;
+    tx.date = newDate;
+    tx.type = editTxType;
+
+    saveData();
+    closeTxSheet();
+    renderAll();
+  }
+  function deleteTx(id){
+    var tx = state.transactions.find(function(t){ return t.id === id; });
+    if(!tx) return;
+    if(!confirm("Delete this transaction? The account balance will be adjusted back.")) return;
+    var acc = getAccount(tx.accountId);
+    if(acc){
+      acc.balance -= (tx.type === "spend" ? -tx.amount : tx.amount);
+    }
+    state.transactions = state.transactions.filter(function(t){ return t.id !== id; });
+    saveData();
+    renderAll();
+  }
+
+  /* ---------------- Report navigation ---------------- */
+  document.getElementById("prevDay").addEventListener("click", function(){
+    reportDate = addDaysISO(reportDate, -1);
+    renderReport();
+  });
+  document.getElementById("nextDay").addEventListener("click", function(){
+    reportDate = addDaysISO(reportDate, 1);
+    renderReport();
+  });
+
+  /* ---------------- Wire up static buttons ---------------- */
+  document.getElementById("newAcctBtn").addEventListener("click", openNewAccount);
+  document.getElementById("acctCancelBtn").addEventListener("click", closeAccountSheet);
+  document.getElementById("acctSaveBtn").addEventListener("click", saveAccount);
+  document.getElementById("editAcctBtn").addEventListener("click", openEditAccount);
+  document.getElementById("deleteAcctBtn").addEventListener("click", deleteAccount);
+  document.getElementById("addTxBtn").addEventListener("click", addTransaction);
+  document.getElementById("txCancelBtn").addEventListener("click", closeTxSheet);
+  document.getElementById("txSaveBtn").addEventListener("click", saveTxEdit);
+
+  document.getElementById("acctOverlay").addEventListener("click", function(e){
+    if(e.target === this) closeAccountSheet();
+  });
+  document.getElementById("txOverlay").addEventListener("click", function(e){
+    if(e.target === this) closeTxSheet();
+  });
+
+  /* ---------------- Init ---------------- */
+  document.getElementById("txDate").value = todayISO();
+  renderAll();
+})();
+</script>
+</body>
+</html>
