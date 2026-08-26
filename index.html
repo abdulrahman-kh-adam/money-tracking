@@ -292,13 +292,28 @@
     font-size:13px;padding:2px 4px;line-height:1;
   }
   .note-chips-empty{font-size:12px;color:var(--ink-soft);font-style:italic;}
+
+  .auth-sheet{max-width:340px;width:100%;}
+  .auth-error{color:var(--clay);font-size:13px;margin:-6px 0 12px;display:none;}
+  .auth-note{font-size:12.5px;color:var(--ink-soft);margin:0 0 16px;line-height:1.5;}
+  .header-top-row{display:flex;justify-content:space-between;align-items:flex-start;}
+  .sync-btn{
+    background:none;border:1px solid rgba(242,238,228,0.3);color:#D8DED4;
+    font-size:11px;padding:5px 10px;border-radius:20px;cursor:pointer;
+    font-family:'IBM Plex Sans',sans-serif;white-space:nowrap;
+  }
+  .sync-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--sage);margin-right:5px;vertical-align:middle;}
+  .sync-dot.off{background:var(--clay);}
 </style>
 </head>
 <body>
 <div id="app">
 
   <header class="top">
-    <p class="eyebrow" id="todayLabel">—</p>
+    <div class="header-top-row">
+      <p class="eyebrow" id="todayLabel">—</p>
+      <button class="sync-btn" id="signOutBtn"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">Synced</span></button>
+    </div>
     <h1>Ledger</h1>
     <div class="total-row">
       <span class="label">Across all accounts</span>
@@ -454,33 +469,102 @@
   </div>
 </div>
 
+<!-- AUTH OVERLAY -->
+<div class="overlay show" id="authOverlay" style="align-items:center;">
+  <div class="sheet auth-sheet">
+    <h2 id="authTitle">Sign in</h2>
+    <p class="auth-note">Sign in to sync your accounts and transactions across every device. Your data is stored under your own account and only you can see it.</p>
+    <div class="field">
+      <label for="authEmail">Email</label>
+      <input type="email" id="authEmail" autocomplete="email" placeholder="you@example.com">
+    </div>
+    <div class="field">
+      <label for="authPassword">Password</label>
+      <input type="password" id="authPassword" autocomplete="current-password" placeholder="At least 6 characters">
+    </div>
+    <p class="auth-error" id="authError"></p>
+    <div class="sheet-actions">
+      <button class="btn btn-outline" id="authSignUpBtn">Create account</button>
+      <button class="btn btn-primary" id="authSignInBtn">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDK (compat build — works with plain <script> tags, no build step) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+
 <script>
 (function(){
   "use strict";
 
-  /* ---------------- Data layer ---------------- */
-  var STORAGE_KEY = "ledger_data_v1";
+  /* ---------------- Data layer (Firebase) ---------------- */
   var COLORS = ["#A9791F","#3F6146","#95402B","#3E6B8A","#7A4E9C","#B0672D"];
 
-  function loadData(){
-    try{
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if(!raw) return { accounts: [], transactions: [] };
-      var parsed = JSON.parse(raw);
-      if(!parsed.accounts) parsed.accounts = [];
-      if(!parsed.transactions) parsed.transactions = [];
-      parsed.accounts.forEach(function(a){ if(!Array.isArray(a.savedNotes)) a.savedNotes = []; });
-      return parsed;
-    }catch(e){
-      console.error("Failed to load data", e);
-      return { accounts: [], transactions: [] };
-    }
-  }
-  function saveData(){
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // ⚙️ PASTE YOUR OWN FIREBASE CONFIG HERE — see the setup steps you were given.
+  var firebaseConfig = {
+    apiKey: "AIzaSyC1LmU9DEn0FMSVSi-p-94LzKjBuGtl-QM",
+    authDomain: "money-ledger-79b67.firebaseapp.com",
+    projectId: "money-ledger-79b67",
+    storageBucket: "money-ledger-79b67.firebasestorage.app",
+    messagingSenderId: "105609258487",
+    appId: "1:105609258487:web:ded92e6ba5fabfd2153af2"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  var auth = firebase.auth();
+  var db = firebase.firestore();
+  db.enablePersistence({ synchronizeTabs: true }).catch(function(err){
+    console.warn("Offline cache not enabled:", err.code);
+  });
+
+  var state = { accounts: [], transactions: [] };
+  var unsubscribeSnapshot = null;
+
+  function docRefFor(uid){
+    return db.collection("users").doc(uid).collection("ledger").doc("main");
   }
 
-  var state = loadData();
+  function normalizeState(data){
+    state.accounts = (data && data.accounts) || [];
+    state.transactions = (data && data.transactions) || [];
+    state.accounts.forEach(function(a){ if(!Array.isArray(a.savedNotes)) a.savedNotes = []; });
+  }
+
+  function attachSnapshotListener(uidVal){
+    if(unsubscribeSnapshot) unsubscribeSnapshot();
+    setSyncStatus("syncing");
+    unsubscribeSnapshot = docRefFor(uidVal).onSnapshot(function(snap){
+      normalizeState(snap.exists ? snap.data() : null);
+      setSyncStatus("synced");
+      renderAll();
+    }, function(err){
+      console.error("Sync error", err);
+      setSyncStatus("offline");
+    });
+  }
+
+  function saveData(){
+    var user = auth.currentUser;
+    if(!user) return;
+    setSyncStatus("syncing");
+    docRefFor(user.uid).set({ accounts: state.accounts, transactions: state.transactions })
+      .then(function(){ setSyncStatus("synced"); })
+      .catch(function(err){
+        console.error("Save failed", err);
+        setSyncStatus("offline");
+      });
+  }
+
+  function setSyncStatus(status){
+    var dot = document.getElementById("syncDot");
+    var label = document.getElementById("syncLabel");
+    if(!dot || !label) return;
+    if(status === "synced"){ dot.classList.remove("off"); label.textContent = "Synced"; }
+    else if(status === "syncing"){ dot.classList.remove("off"); label.textContent = "Saving…"; }
+    else { dot.classList.add("off"); label.textContent = "Offline"; }
+  }
 
   function uid(){
     return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
@@ -953,9 +1037,51 @@
     if(e.target === this) closeTxSheet();
   });
 
+  /* ---------------- Auth ---------------- */
+  function showAuthError(err){
+    var el = document.getElementById("authError");
+    el.textContent = err && err.message ? err.message : "Something went wrong. Please try again.";
+    el.style.display = "block";
+  }
+  function clearAuthError(){
+    document.getElementById("authError").style.display = "none";
+  }
+  document.getElementById("authSignInBtn").addEventListener("click", function(){
+    var email = document.getElementById("authEmail").value.trim();
+    var pw = document.getElementById("authPassword").value;
+    clearAuthError();
+    if(!email || !pw){ showAuthError({message:"Enter your email and password."}); return; }
+    auth.signInWithEmailAndPassword(email, pw).catch(showAuthError);
+  });
+  document.getElementById("authSignUpBtn").addEventListener("click", function(){
+    var email = document.getElementById("authEmail").value.trim();
+    var pw = document.getElementById("authPassword").value;
+    clearAuthError();
+    if(!email || !pw){ showAuthError({message:"Enter an email and a password (6+ characters)."}); return; }
+    auth.createUserWithEmailAndPassword(email, pw).catch(showAuthError);
+  });
+  document.getElementById("signOutBtn").addEventListener("click", function(){
+    if(confirm("Sign out of this device?")) auth.signOut();
+  });
+
+  auth.onAuthStateChanged(function(user){
+    if(user){
+      document.getElementById("authOverlay").classList.remove("show");
+      document.getElementById("authEmail").value = "";
+      document.getElementById("authPassword").value = "";
+      currentAccountId = null;
+      switchView("accounts");
+      attachSnapshotListener(user.uid);
+    } else {
+      if(unsubscribeSnapshot){ unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+      state.accounts = [];
+      state.transactions = [];
+      document.getElementById("authOverlay").classList.add("show");
+    }
+  });
+
   /* ---------------- Init ---------------- */
   document.getElementById("txDate").value = todayISO();
-  renderAll();
 })();
 </script>
 </body>
